@@ -136,67 +136,38 @@ int main(int argc, char const *argv[]){
         }
     }
 
-            // 2) Imprime TODOS (activos y terminados)
+            // Imprimir
             time_t ahora = time(NULL);
             for (int i = 0; i < total_procesos; i++) {
-                if (procesos[i].activo == 1) {
-                time_t ahora = time(NULL);
-                int tiempo_ejecucion = (int)(ahora - procesos[i].tiempo_inicio);
-                printf("%d\t%s\t\t%d\t%d\t\t%d\n",
-                procesos[i].pid, procesos[i].nombre, tiempo_ejecucion,
-                procesos[i].exit_code, procesos[i].signal_value);
+                time_t fin = (procesos[i].activo == 1) ? ahora : procesos[i].tiempo_fin;
+                int tiempo_ejec = (int)(fin - procesos[i].tiempo_inicio);
+                if (tiempo_ejec < 0) tiempo_ejec = 0; // por si acaso
+                    printf("%d\t%s\t\t%d\t%d\t\t%d\n",
+                        procesos[i].pid,
+                        procesos[i].nombre,
+                        tiempo_ejec,
+                        procesos[i].exit_code,
+                        procesos[i].signal_value);
             }
         } 
 
-        /*
-        * funcion: @abort <time>
-        * Este comando permite terminar despues de time segundos, todos los procesos
-        *
-        * 
-        * */
+
         // felipe b
         } else if (strcmp(input[0], "abort")==0){
+            double actual = clock();
             double t_minus = atof(input[1]);  // input[1] es el argumento <time>
-            int activos = 0;
-            for (int i = 0; i < total_procesos; i++){
-                if(procesos[i].activo == 1){
-                    activos=1;
-                    break;
-                }
+            ; // es un <time> pasado ese time debo parar todos los procesos en ejecucion
+            
+            // ACA CONVERTIR t_minus a double
+            while (actual != t_minus)
+            {
+                // si no hay procecsos en ejecucion se debe informar que "No hay procesos en ejecucion. Abort no se puede ejecutar"
+                // si hay procesos en ejecucion, se espera a que pase el timepo que hay en time
+                //    - si un proceso no finaliza dentro de ese tiempo, se debe imprimir la siguiente info para despues enviar SIGTERM:
+                //      Abort cumplido 
+                //      PID nombre_del_ejecutable tiempo_ejecucion exit_code signal_value    
             }
-             if (!activos) {
-                printf("No hay procesos en ejecución. Abort no se puede ejecutar\n");
-                return;
-            }
-            sleep((unsigned int)t_minus);
-            for (int i = 0; i < total_procesos; i++) {
-                if (procesos[i].activo == 1) {
-                    int status;
-                    pid_t result = waitpid(procesos[i].pid, &status, WNOHANG);
-                if (result == 0) {
-                    // Proceso sigue activo → abortar
-                    procesos[i].tiempo_fin = time(NULL);
-                    procesos[i].signal_value = SIGTERM;
-                    procesos[i].exit_code = -1;  // No terminó normalmente
-                    double duracion = difftime(procesos[i].tiempo_fin, procesos[i].tiempo_inicio);
-                    printf("Abort cumplido\n");
-                    printf("PID: %d Nombre: %s Tiempo: %.2f ExitCode: %d Signal: %d\n",
-                        procesos[i].pid,
-                        procesos[i].nombre,
-                        duracion,
-                        procesos[i].exit_code,
-                        procesos[i].signal_value);
-                    kill(procesos[i].pid, SIGTERM);
-                    procesos[i].activo = 0;
-                } else if (result == procesos[i].pid) {
-                    // Proceso ya terminó
-                    procesos[i].tiempo_fin = time(NULL);
-                    procesos[i].exit_code = WEXITSTATUS(status);
-                    procesos[i].signal_value = 0;
-                    procesos[i].activo = 0;
-            }
-            }
-        }
+            
         // felipe b 
         
         
