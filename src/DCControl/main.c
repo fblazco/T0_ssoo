@@ -74,65 +74,46 @@ void* shutdown_handler(void* arg) {
     // 5. Finalizar el programa
     exit(0);
 }
+
+void* time_max_handler(void* arg){
+    while (1){
+        sleep(1);
+        time_t ahora = time(NULL);
+        
+        for (int i = 0; i < total_procesos; i++){
+            if (procesos[i].activo == 1){
+                int duracion = (int)(ahora - procesos[i].tiempo_inicio);
+                if (!procesos[i].term_enviado && time_max > 0 && duracion >= time_max){
+                    kill(procesos[i].pid, SIGTERM);
+                    procesos[i].signal_value = SIGTERM;
+                    procesos[i].term_enviado = 1;
+                    procesos[i].term_ts = ahora;
+                    //printf("Proceso %s (PID %d) excedió time_max. SIGTERM enviado.\n", procesos[i].nombre, procesos[i].pid);
+                } else if (procesos[i].term_enviado && (ahora - procesos[i].term_ts) >= 5){
+                    kill(procesos[i].pid, SIGKILL);
+                    procesos[i].signal_value = SIGKILL;
+                    procesos[i].tiempo_fin = ahora;
+                    procesos[i].exit_code = -1;
+                    procesos[i].activo = 0;
+                    printf("Proceso %s (PID %d) no terminó tras SIGTERM. SIGKILL enviado.\n",
+                           procesos[i].nombre, procesos[i].pid);
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
 /*************MAIN***********/
 int main(int argc, char const *argv[]){
     set_buffer(); // No borrar
-    
     if (argc >= 2) {
         time_max = atoi(argv[1]); // si no entregan, queda -1 (sin límite)
     }
-
+    pthread_t time_max_thread;
+    pthread_create(&time_max_thread, NULL, time_max_handler, NULL);
     while (1) {
-        /**
-         * funcion: @shutdown
-         *  - el programa debe funcionar distinto si existe un @shutdown en proceso
-         */
-        if (shutdown_en_progreso) {
-            time_t ahora = time(NULL);
-            if (difftime(ahora, shutdown_inicio) >= 10) {
-                for (int i = 0; i < total_procesos; i++) {
-                    if (procesos[i].activo == 1) {
-                        kill(procesos[i].pid, SIGKILL);
-                        procesos[i].tiempo_fin = ahora;
-                        procesos[i].signal_value = SIGKILL;
-                        procesos[i].exit_code = -1;
-                        procesos[i].activo = 0;
-                    }
-                }
-                printf("\nDCControl finalizado shutdown complete.\n");
-                printf("PID\tNombre\t\tTiempo\tExit Code\tSignal\n");
-                printf("---\t------\t\t------\t---------\t------\n");
-                for (int i = 0; i < total_procesos; i++) {
-                    time_t fin = procesos[i].tiempo_fin ? procesos[i].tiempo_fin : ahora;
-                    int tiempo_ejecucion = (int)(fin - procesos[i].tiempo_inicio);
-                    printf("%d\t%s\t\t%d\t%d\t\t%d\n",
-                           procesos[i].pid, procesos[i].nombre, tiempo_ejecucion,
-                           procesos[i].exit_code, procesos[i].signal_value); 
-                }
-                exit(0);
-            }
-        }
-
         // revisar time_max para cada proceso
-        if (time_max > 0) {
-            time_t ahora = time(NULL);
-            for (int i = 0; i < total_procesos; i++) {
-                if (procesos[i].activo == 1) {
-                    int duracion = (int)(ahora - procesos[i].tiempo_inicio);
-                    if (!procesos[i].term_enviado && duracion >= time_max) {
-                        // primero SIGTERM
-                        kill(procesos[i].pid, SIGTERM);
-                        procesos[i].signal_value = SIGTERM;
-                        procesos[i].term_enviado = 1;
-                        procesos[i].term_ts = ahora;
-                    } else if (procesos[i].term_enviado && (ahora - procesos[i].term_ts) >= 5) {
-                        // después de 5s, SIGKILL si sigue vivo
-                        kill(procesos[i].pid, SIGKILL);
-                        procesos[i].signal_value = SIGKILL;
-                    }
-                }
-            }
-        }
 
         printf("> ");
         char** input = read_user_input();
