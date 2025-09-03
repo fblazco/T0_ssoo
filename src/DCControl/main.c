@@ -72,7 +72,7 @@ void* shutdown_handler(void* arg) {
     }
 
     // 5. Finalizar el programa
-    exit(0);
+    _exit(0);
 }
 
 void* time_max_handler(void* arg){
@@ -143,7 +143,7 @@ int main(int argc, char const *argv[]){
                     // Proceso hijo
                     execvp(args[0], args);
                     perror("Error al ejecutar el programa");
-                    exit(127);  // Código común para "command not found"
+                    _exit(127);  // Código común para "command not found"
                 } else if (pid > 0) {
                     // Proceso padre
                     sleep(1);  // Esperamos brevemente para detectar fallo inmediato
@@ -269,7 +269,7 @@ int main(int argc, char const *argv[]){
                            procesos[i].pid, procesos[i].nombre, tiempo,
                            procesos[i].exit_code, procesos[i].signal_value); 
                 }
-                exit(0);
+                _exit(0);
             } else {
                 // Crear hilo para manejar el shutdown en segundo plano
                 pthread_t shutdown_thread;
@@ -309,7 +309,7 @@ int main(int argc, char const *argv[]){
                        procesos[i].pid, procesos[i].nombre, tiempo,
                        procesos[i].exit_code, procesos[i].signal_value);
             }
-            exit(0);
+            _exit(0);
         }
 
         free_user_input(input);
