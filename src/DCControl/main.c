@@ -138,27 +138,38 @@ int main(int argc, char const *argv[]){
                 args[count] = NULL;
 
                 pid_t pid = fork();
+
                 if (pid == 0) {
+                    // Proceso hijo
                     execvp(args[0], args);
                     perror("Error al ejecutar el programa");
-                    exit(EXIT_FAILURE);
+                    exit(127);  // Código común para "command not found"
                 } else if (pid > 0) {
-                    printf("Ejecutando %s en segundo plano (PID %d)\n", args[0], pid);
-                    procesos[total_procesos].pid = pid;
-                    strcpy(procesos[total_procesos].nombre, input[1]);
-                    procesos[total_procesos].tiempo_inicio = time(NULL);
-                    procesos[total_procesos].tiempo_fin = 0;
-                    procesos[total_procesos].exit_code = -1;
-                    procesos[total_procesos].signal_value = -1;
-                    procesos[total_procesos].activo = 1;
-                    procesos[total_procesos].term_enviado = 0;
-                    procesos[total_procesos].term_ts = 0;
-                    total_procesos++;
+                    // Proceso padre
+                    sleep(1);  // Esperamos brevemente para detectar fallo inmediato
+
+                    int status;
+                    pid_t result = waitpid(pid, &status, WNOHANG);
+
+                    if (result == pid && WIFEXITED(status) && WEXITSTATUS(status) == 127) {
+                        printf("Error: el ejecutable '%s' no existe o falló al ejecutarse\n", args[0]);
+                    } else {
+                        printf("Ejecutando %s en segundo plano (PID %d)\n", args[0], pid);
+                        procesos[total_procesos].pid = pid;
+                        strcpy(procesos[total_procesos].nombre, input[1]);
+                        procesos[total_procesos].tiempo_inicio = time(NULL);
+                        procesos[total_procesos].tiempo_fin = 0;
+                        procesos[total_procesos].exit_code = -1;
+                        procesos[total_procesos].signal_value = -1;
+                        procesos[total_procesos].activo = 1;
+                        procesos[total_procesos].term_enviado = 0;
+                        procesos[total_procesos].term_ts = 0;
+                        total_procesos++;
+                    }
                 } else {
                     perror("Error al crear el proceso");
                 }
-            }
-
+        }
         /*
         * funcion: @status
         * este comando entrega al usuario un listado de todos los programas que hayan sido ejecutados 
