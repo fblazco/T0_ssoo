@@ -15,9 +15,9 @@ launch  ok
 abort  ok
 shutdown 
 status  ok
-emergency 
-time_max (al final)
-manejo de memoria los 2
+emergency ok 
+time_max (al final) PENDIENTE
+manejo de memoria los 2 PENDIENTE
 */
 /*************STRUCTS***********/
 struct proceso {
