@@ -24,6 +24,7 @@ struct proceso {
     int pid;
     char nombre[256];
     time_t tiempo_inicio;
+    time_t tiempo_fin;
     int exit_code;
     int signal_value;
     int activo;
@@ -31,6 +32,9 @@ struct proceso {
 /******* GLOBALES ******/
 struct proceso procesos[10];
 int total_procesos = 0;
+int shutdown_en_progreso = 0;
+time_t shutdown_inicio;
+
 
 /*************FUNCIONES***********/
 
@@ -44,9 +48,56 @@ int main(int argc, char const *argv[]){
     //printf("%s\n", input[0]);
     
     while (1) {
+        /**
+         * funcion: @shutdown
+         *  - el programa debe funcionar distinto si existe un @shutdown en proceso
+         */
+        if (shutdown_en_progreso) {
+            time_t ahora = time(NULL);
+            if (difftime(ahora, shutdown_inicio) >= 10) {
+                // Enviar SIGKILL a procesos aún activos
+                for (int i = 0; i < total_procesos; i++) {
+                    if (procesos[i].activo == 1) {
+                        kill(procesos[i].pid, SIGKILL);
+                        procesos[i].tiempo_fin = ahora;
+                        procesos[i].signal_value = SIGKILL;
+                        procesos[i].exit_code = -1;
+                        procesos[i].activo = 0;}
+                }
+                printf("\nDCControl finalizado shutdown complete.\n");
+                printf("PID\tNombre\t\tTiempo\tExit Code\tSignal\n");
+                printf("---\t------\t\t------\t---------\t------\n");
+                for (int i = 0; i < total_procesos; i++) {
+                    if (procesos[i].activo == 1) {
+                        kill(procesos[i].pid, SIGINT);
+                        int status;
+                        pid_t result = waitpid(procesos[i].pid, &status, WNOHANG);
+                        if (result == procesos[i].pid) {
+                            procesos[i].activo = 0;
+                            procesos[i].tiempo_fin = time(NULL);
+                            if (WIFEXITED(status)) {
+                                procesos[i].exit_code = WEXITSTATUS(status);
+                                procesos[i].signal_value = 0;
+                            } else if (WIFSIGNALED(status)) {
+                                procesos[i].exit_code = -1;
+                                procesos[i].signal_value = WTERMSIG(status);
+                            }
+                        }
+                    }
+                }
+                // Mostrar información de todos los procesos
+                for (int i = 0; i < total_procesos; i++) {
+                    time_t ahora = time(NULL);
+                    int tiempo_ejecucion = (int)(ahora - procesos[i].tiempo_inicio);
+                    printf("%d\t%s\t\t%d\t%d\t\t%d\n",
+                    procesos[i].pid, procesos[i].nombre, tiempo_ejecucion,
+                    procesos[i].exit_code, procesos[i].signal_value); 
+                    }
+                    
+                exit(0);return 0;;}
+        }
         printf("> ");
         char** input = read_user_input();
-    
         if (input[0] == NULL) {
             free_user_input(input);
             continue;
@@ -89,7 +140,7 @@ int main(int argc, char const *argv[]){
                     procesos[total_procesos].pid = pid;
                     strcpy(procesos[total_procesos].nombre, input[1]);
                     procesos[total_procesos].tiempo_inicio = time(NULL);
-                    //procesos[total_procesos].tiempo_fin = 0;
+                    procesos[total_procesos].tiempo_fin = 0;
                     procesos[total_procesos].exit_code = -1;
                     procesos[total_procesos].signal_value = -1; 
                     procesos[total_procesos].activo = 1;
@@ -210,47 +261,116 @@ int main(int argc, char const *argv[]){
             }
             // 2. no hay procesos imprimir stats
             if(!activos){
+                printf("DCControl finalizado shutdown sin procesos.\n");
                 printf("PID\tName\t\tTime\tExit Code\tSignal\n");
                 printf("---\t----\t\t----\t---------\t------\n");
                 // Mostrar información de todos los procesos
                 for (int i = 0; i < total_procesos; i++) {
-                    if (procesos[i].activo == 1) {
-                        time_t ahora = time(NULL);
-                        int tiempo_ejecucion = (int)(ahora - procesos[i].tiempo_inicio);
-                        printf("%d\t%s\t\t%d\t%d\t\t%d\n",
-                        procesos[i].pid, procesos[i].nombre, tiempo_ejecucion,
-                        procesos[i].exit_code, procesos[i].signal_value); 
+                if (procesos[i].activo == 1) {
+                    kill(procesos[i].pid, SIGINT);
+                    int status;
+                    pid_t result = waitpid(procesos[i].pid, &status, WNOHANG);
+                    if (result == procesos[i].pid) {
+                        procesos[i].activo = 0;
+                        procesos[i].tiempo_fin = time(NULL);
+                        if (WIFEXITED(status)) {
+                            procesos[i].exit_code = WEXITSTATUS(status);
+                            procesos[i].signal_value = 0;
+                        } else if (WIFSIGNALED(status)) {
+                            procesos[i].exit_code = -1;
+                            procesos[i].signal_value = WTERMSIG(status);
+                        }
                     }
-                } 
+                }
+                }
+                for (int i = 0; i < total_procesos; i++) {
+                    time_t ahora = time(NULL);
+                    int tiempo_ejecucion = (int)(ahora - procesos[i].tiempo_inicio);
+                    printf("%d\t%s\t\t%d\t%d\t\t%d\n",
+                    procesos[i].pid, procesos[i].nombre, tiempo_ejecucion,
+                    procesos[i].exit_code, procesos[i].signal_value); 
+                }
+                exit(0);
             // 3. si hay procesos SIGINT
             }else{
                 // mando SIGINT A TODOS
                 // ESPERO 10 SEGUNDOS PERO SIGO ACEPTANDO COMANDOS
                 // SIGKILL POST 10S
                 // IMPRIMIR STATS
-                break;
+                for (int i = 0; i < total_procesos; i++) {
+                    if (procesos[i].activo == 1) {
+                        kill(procesos[i].pid, SIGINT);
+                        int status;
+                        pid_t result = waitpid(procesos[i].pid, &status, WNOHANG);
+                        if (result == procesos[i].pid) {
+                            procesos[i].activo = 0;
+                            procesos[i].tiempo_fin = time(NULL);
+                            if (WIFEXITED(status)) {
+                                procesos[i].exit_code = WEXITSTATUS(status);
+                                procesos[i].signal_value = 0;
+                            } else if (WIFSIGNALED(status)) {
+                                procesos[i].exit_code = -1;
+                                procesos[i].signal_value = WTERMSIG(status);
+                            }
+                        }
+                    }
+                }
+                shutdown_en_progreso = 1;
+                shutdown_inicio = time(NULL);
+                printf("Shutdown iniciado. Esperando 10 segundos...\n");
+            
             }
-            
-            
-        
-        
-        
-        
-        
-        
         /*
         * funcion: @emergency
-        * permite terminar luego de t_minus segundos todos los procesos que se esten ejecutando
-        * cuenta los procesos activos con que exista 1 prosigue
-        * si no hay procesos activos imprime que @abort no se puede ejecutar
-        * si hay procesos activos
-        * espero el t_minus segudos
-        * busco las pid de los procesos y si estos siguen activos los aborto
+        * Termina inmediatamente todos los procesos que se esten ejecutando
+        * Envia SIGKILL de manera directa
+        * No hay tiempo de gracia
+        * No hay senales previas
+        * Se imprimen las estadisticas
+        * finaliza DCControl
         * */
         } else if (strcmp(input[0], "emergency")==0){
-        }
+            // 1.envio SIGKILL
+            for (int i = 0; i < total_procesos; i++) {
+                    if (procesos[i].activo == 1) {
+                        kill(procesos[i].pid, SIGKILL);
+                    }
+            }
+            // 2.se imprimen las stats
+            printf("¡Emergencia!\n");
+            printf("DCControl finalizado.\n");
+            printf("PID\tName\t\tTime\tExit Code\tSignal\n");
+            printf("---\t----\t\t----\t---------\t------\n");
+            // 3.Mostrar información de todos los procesos
+            for (int i = 0; i < total_procesos; i++) {
+                if (procesos[i].activo == 1) {
+                    kill(procesos[i].pid, SIGINT);
+                    int status;
+                    pid_t result = waitpid(procesos[i].pid, &status, WNOHANG);
+                    if (result == procesos[i].pid) {
+                        procesos[i].activo = 0;
+                        procesos[i].tiempo_fin = time(NULL);
+                        if (WIFEXITED(status)) {
+                            procesos[i].exit_code = WEXITSTATUS(status);
+                            procesos[i].signal_value = 0;
+                        } else if (WIFSIGNALED(status)) {
+                            procesos[i].exit_code = -1;
+                            procesos[i].signal_value = WTERMSIG(status);
+                        }
+                    }
+                }
+            }
+            for (int i = 0; i < total_procesos; i++) {
+                time_t ahora = time(NULL);
+                int tiempo_ejecucion = (int)(ahora - procesos[i].tiempo_inicio);
+                printf("%d\t%s\t\t%d\t%d\t\t%d\n",
+                procesos[i].pid, procesos[i].nombre, tiempo_ejecucion,
+                procesos[i].exit_code, procesos[i].signal_value); 
+            }
+            exit(0);}
+        
         free_user_input(input);
-    
+        
     }
 
 }
